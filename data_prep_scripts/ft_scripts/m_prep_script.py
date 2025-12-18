@@ -14,7 +14,7 @@ charset = set()
 for folder in tqdm.tqdm(os.listdir(p2root)):
     if 'manifest' == folder:
         continue
-    wavs = glob.glob(p2root+'/'+folder+'/**/*.wav',recursive=True)
+    wavs = glob.glob(p2root+'/'+folder+'/**/*.flac',recursive=True)
     samples = [len(sf.read(w)[0]) for w in wavs]
     #print(wavs)
     root = os.path.abspath(os.path.split(wavs[0])[0])	
@@ -40,8 +40,8 @@ for folder in tqdm.tqdm(os.listdir(p2root)):
         print(root,file=tsv)
         for n,d in zip(wavs,samples):
             print(n,d,sep='\t',file=tsv)
-            print(wav2trans[n[:-4]],file=wrd)
-            print(" ".join(list(wav2trans[n[:-4]].replace(" ", "|"))) + " |", file=ltr)
+            print(wav2trans[os.path.splitext(n)[0]],file=wrd)
+            print(" ".join(list(wav2trans[os.path.splitext(n)[0]].replace(" ", "|"))) + " |", file=ltr)
 
 
 with open(manifest+"dict.ltr.txt",'w') as dct:
