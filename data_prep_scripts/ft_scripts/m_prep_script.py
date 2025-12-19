@@ -2,10 +2,13 @@ import sys
 import soundfile as sf
 import glob
 import os,tqdm
+import re
+from pathlib import Path
 
 p2root = sys.argv[1]
 
 manifest = p2root+"/manifest/"
+aud_ext_pattrn = re.compile(r"\.(mp3|flac|wav)$")
 
 if not os.path.exists(manifest):
     os.makedirs(manifest)
@@ -14,7 +17,9 @@ charset = set()
 for folder in tqdm.tqdm(os.listdir(p2root)):
     if 'manifest' == folder:
         continue
-    wavs = glob.glob(p2root+'/'+folder+'/**/*.flac',recursive=True)
+    data_fol = Path(f"{p2root}/{folder}")
+    # wavs = [glob.glob(p2root+'/'+folder+'/**/*.flac',recursive=True)]
+    wavs = [file_path.as_posix() for file_path in data_fol.iterdir() if file_path.is_file() and aud_ext_pattrn.search(file_path.as_posix())]
     samples = [len(sf.read(w)[0]) for w in wavs]
     #print(wavs)
     root = os.path.abspath(os.path.split(wavs[0])[0])	
