@@ -1,11 +1,12 @@
 dir_path=$1
 lang=$2
+kenlm_dir=$3
 top_k=2000000
 lexicon=2000000
 
 #For kenlm
 lm_path=${dir_path}"/"${lang}
-kenlm_bins="kenlm/build/bin" #path to kenlm binary
+kenlm_bins=${kenlm_dir}"/build/bin" #path to kenlm binary
 input_txt_file_path=${lm_path}"/clean_toks.txt"
 
 #For lexicon 

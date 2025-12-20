@@ -9,17 +9,28 @@ from collections import Counter
 import argparse
 import re
 
+from transliteration import resources as translit_resources
+from importlib.resources import files
+
 def main(args):
     lang = args.lang
     dir_path = args.dir_path
     os.makedirs(f'{dir_path}/{lang}', exist_ok=True)
-    dict_path = f'{dir_path}/{lang}/dict.txt'
+    dict_path = f'{dir_path}/{lang}/manifest/dict.ltr.txt'
     clean_dump = f'{dir_path}/{lang}/clean_dump.txt'
     lexicon_kenlm = f'{dir_path}/{lang}/lexicon.txt'
     clean_toks = f'{dir_path}/{lang}/clean_toks.txt'
 
-    dict_range_st = args.st # 
-    dict_range_en = args.en # ref: https://www.ssec.wisc.edu/~tomw/java/unicode.html
+    #nepali devanagari characters
+    nep_charset_path = files(translit_resources).joinpath('nepali_devanagari_charset.txt')
+    nep_chars = set()
+    with open(nep_charset_path, mode = 'r', encoding = 'utf-8') as charset_f:
+        for line in charset_f:
+            char, idx = line.split()
+            nep_chars.add(char)
+            
+    en_dict_range_st = args.st # 
+    en_dict_range_en = args.en # ref: https://www.ssec.wisc.edu/~tomw/java/unicode.html
 
     gen_punc_st = 8192
     gen_punc_en = 8334 # ref: https://www.ssec.wisc.edu/~tomw/java/unicode.html
@@ -27,9 +38,16 @@ def main(args):
     dict_df = pd.read_csv(dict_path, sep=' ', header= None, names=['char', 'ul'])
     dict_chars = set(dict_df['char'].tolist())
 
-    all_chars = set([chr(i) for i in range(dict_range_st, dict_range_en+1)])
-    print(f'Extra characters: {len(dict_chars-all_chars)}\n {dict_chars-all_chars}')
-    print(f'Missing characters: {len(all_chars-dict_chars)}\n {all_chars-dict_chars}')
+    en_chars = {chr(i) for i in range(en_dict_range_st, en_dict_range_en+1)}
+
+    all_chars = set()
+    print(f"LENGTH OF CHARACTER SET: {len(all_chars)}")
+    all_chars.update(nep_chars)
+    print(f"LENGTH OF CHARACTER SET: {len(all_chars)}")
+    all_chars.update(en_chars)
+    print(f"LENGTH OF CHARACTER SET: {len(all_chars)}")
+    # print(f'Extra characters: {len(dict_chars-all_chars)}\n {dict_chars-all_chars}')
+    # print(f'Missing characters: {len(all_chars-dict_chars)}\n {all_chars-dict_chars}')
 
     legal_chars = all_chars.copy()
     gen_punc = [chr(i) for i in range(gen_punc_st, gen_punc_en+1)]
@@ -37,8 +55,8 @@ def main(args):
     legal_chars.update(set(list(string.digits+string.punctuation)+gen_punc+curr))
     legal_chars.update(' ')
 
-    print('Total dict characters: ',len(dict_chars), legal_chars)
-    print(f'Illegal characters: {len(legal_chars.difference(all_chars.union(dict_chars)))}\n {legal_chars.difference(all_chars.union(dict_chars))}')
+    # print('Total dict characters: ',len(dict_chars), legal_chars)
+    # print(f'Illegal characters: {len(legal_chars.difference(all_chars.union(dict_chars)))}\n {legal_chars.difference(all_chars.union(dict_chars))}')
 
     permissible_lines = [] # only to include speech transcript
     if args.use_external_corpus:
@@ -57,7 +75,7 @@ def main(args):
             lex_data.extend(t.split())
 
     dict_chars.update(' ')
-    print(lex_data)
+    # print(lex_data)
     illegal_chars = ''.join(legal_chars.difference(all_chars.union(dict_chars))) # changing dict_chars to union of all_chars here!
     regex = re.compile('[%s]' % re.escape(illegal_chars))
 
@@ -66,7 +84,7 @@ def main(args):
         l = l.strip()
         chars = set(list(l))
         if len(chars - legal_chars) != 0:
-            print(chars - legal_chars)
+            # print(chars - legal_chars)
             continue
 
         space_rem = re.sub(regex,"",l)
@@ -113,7 +131,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--transcript", help="path to speech transcript file", type=str, required=True
     )
-    parser.add_argument("--use_external_corpus", type=bool, default=True)
+    parser.add_argument("--use_external_corpus", type=bool, default=False)
     parser.add_argument("--st", type=int, required=True)
     parser.add_argument("--en", type=int, required=True)
     parser.add_argument(
