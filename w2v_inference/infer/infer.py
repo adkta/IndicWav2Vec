@@ -14,12 +14,25 @@ import math
 import os
 import sys
 
+print(f"BEFORE APPENDING {sys.path}")
+sys.path.append('/content/fairseq')
+sys.path.append('/content/')
+print(f"AFTER APPENDING {sys.path}")
+
 import editdistance
 import numpy as np
 import torch
 from fairseq import checkpoint_utils, options, progress_bar, tasks, utils
 from fairseq.data.data_utils import post_process
 from fairseq.logging.meters import StopwatchMeter, TimeMeter
+
+from transliteration.transliterator import TranslitDict
+from transliteration.utils import get_reverse_dict
+from transliteration.examples.disambiguation_examples import disambiguate
+
+import kenlm
+
+from symspellpy import SymSpell
 
 
 logging.basicConfig()
@@ -112,8 +125,14 @@ def get_dataset_itr(args, task, models):
     ).next_epoch_itr(shuffle=False)
 
 
+def get_pieces_from_text(text: str) -> str:
+    local_list = list( text.replace(" ", "|") )
+    pieces = " ".join(local_list) + ' |'
+    return pieces
+
+
 def process_predictions(
-    args, hypos, sp, tgt_dict, target_tokens, res_files, speaker, id
+    args, hypos, sp, tgt_dict, target_tokens, res_files, speaker, id, reverse_dict, lang_model, sym_spell = None, edit_dist:int = 0
 ):
     for hypo in hypos[: min(len(hypos), args.nbest)]:
         hyp_pieces = tgt_dict.string(hypo["tokens"].int().cpu())
@@ -122,6 +141,10 @@ def process_predictions(
             hyp_words = " ".join(hypo["words"])
         else:
             hyp_words = post_process(hyp_pieces, args.post_process)
+        
+        hyp_words = disambiguate(sentence=hyp_words, model = lang_model, reverse_dict = reverse_dict, sym_spell = sym_spell, edit_dist = edit_dist, lang_scoring = False, sep_case_plural = True)
+        hyp_pieces = get_pieces_from_text(hyp_words)
+
 
         if res_files is not None:
             print(
@@ -133,7 +156,8 @@ def process_predictions(
                 file=res_files["hypo.words"],
             )
 
-        tgt_pieces = tgt_dict.string(target_tokens)
+        # tgt_pieces = tgt_dict.string(target_tokens)
+        tgt_pieces = target_tokens
         tgt_words = post_process(tgt_pieces, args.post_process)
 
         if res_files is not None:
@@ -233,6 +257,8 @@ def main(args, task=None, model_state=None):
     else:
         f.write("| loading model(s) from {}\n".format(args.path))
         logger.info("| loading model(s) from {}".format(args.path))
+        from fairseq.data.dictionary import Dictionary
+        torch.serialization.add_safe_globals([Dictionary])
         models, saved_cfg, task = checkpoint_utils.load_model_ensemble_and_task(
             utils.split_paths(args.path),
             arg_overrides=ast.literal_eval(args.model_overrides),
@@ -316,6 +342,27 @@ def main(args, task=None, model_state=None):
         if max_source_pos is not None:
             max_source_pos = max_source_pos[0] - 1
 
+    #Reverse-Reduction Dictionary
+    reduc_dict_path = "/content/Nep_Eng_Code-Mixed_Reduct_Dict.json"
+    reverse_dict = get_reverse_dict(dictionary = TranslitDict.load(reduc_dict_path))
+
+    #Spell Correction Vocabulary (Vocabulary of reduced words)
+    edit_dist = 0
+    sym_spell = None
+    # edit_dist = 1
+    # red_voc_count = "/content/red_voc_count.txt"
+    # with open(red_voc_count, encoding = 'utf-8', mode = 'w') as o_f:
+    #     for reduced_wrd in reverse_dict.keys():
+    #         o_f.write(f"{reduced_wrd} 1\n")
+
+    # sym_spell = SymSpell(max_dictionary_edit_distance=edit_dist, prefix_length=7)
+    # sym_spell.load_dictionary(red_voc_count, term_index=0, count_index=1)
+
+    #N-gram Code-mixed Language Model (5-gram)
+    LM = "/content/transcript_out.binary"
+    lang_model = kenlm.LanguageModel(LM)
+
+
     if args.dump_emissions:
         emissions = {}
     if args.dump_features:
@@ -370,8 +417,9 @@ def main(args, task=None, model_state=None):
                     if "target_label" not in sample
                     else sample["target_label"][i, :]
                 )
-                target_tokens = utils.strip_pad(toks, tgt_dict.pad()).int().cpu()
-                # Process top predictions
+
+                # target_tokens = utils.strip_pad(toks, tgt_dict.pad()).int().cpu()
+                target_tokens = task.dataset(args.gen_subset).labels[int(sample_id)]                # Process top predictions
                 errs, length = process_predictions(
                     args,
                     hypos[i],
@@ -381,6 +429,10 @@ def main(args, task=None, model_state=None):
                     res_files,
                     speaker,
                     id,
+                    reverse_dict,
+                    lang_model,
+                    sym_spell,
+                    edit_dist
                 )
                 errs_t += errs
                 lengths_t += length
