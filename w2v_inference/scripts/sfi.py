@@ -16,6 +16,19 @@ from omegaconf import open_dict,OmegaConf
 from fairseq.dataclass.utils import convert_namespace_to_omegaconf
 import math, pydub, argparse
 
+import kenlm
+import sys
+
+print(f"BEFORE APPENDING {sys.path}")
+sys.path.append('/content/fairseq')
+sys.path.append('/content/')
+print(f"AFTER APPENDING {sys.path}")
+
+from transliteration.transliterator import TranslitDict
+from transliteration.utils import get_reverse_dict
+from transliteration.examples.disambiguation_examples import disambiguate
+
+
 try:
     from flashlight.lib.text.dictionary import create_word_dict, load_words
     from flashlight.lib.sequence.criterion import CpuViterbiPath, get_data_ptr_as_bytes
@@ -252,6 +265,29 @@ def align(wavpath,target_dict):
         hypo = generator.generate(mdl, sample, prefix_tokens=None)
     hyp_pieces = target_dict.string(hypo[0][0]["tokens"].int().cpu())
     tr = hyp_pieces.replace(' ','').replace('|',' ').strip()
+
+    #Reverse-Reduction Dictionary
+    reduc_dict_path = "/content/Nep_Eng_Code-Mixed_Reduct_Dict.json"
+    reverse_dict = get_reverse_dict(dictionary = TranslitDict.load(reduc_dict_path))
+
+    #Spell Correction Vocabulary (Vocabulary of reduced words)
+    edit_dist = 0
+    sym_spell = None
+    # edit_dist = 1
+    # red_voc_count = "/content/red_voc_count.txt"
+    # with open(red_voc_count, encoding = 'utf-8', mode = 'w') as o_f:
+    #     for reduced_wrd in reverse_dict.keys():
+    #         o_f.write(f"{reduced_wrd} 1\n")
+
+    # sym_spell = SymSpell(max_dictionary_edit_distance=edit_dist, prefix_length=7)
+    # sym_spell.load_dictionary(red_voc_count, term_index=0, count_index=1)
+
+    #N-gram Code-mixed Language Model (5-gram)
+    LM = "/content/transcript_out.binary"
+    lang_model = kenlm.LanguageModel(LM)
+
+    tr = disambiguate(sentence=tr, model = lang_model, reverse_dict = reverse_dict, sym_spell = sym_spell, edit_dist = edit_dist, lang_scoring = False, sep_case_plural = True)
+
     return tr
 
 def load_model_and_update(mdl_path):
@@ -288,6 +324,8 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     print(args)
+
+    torch.serialization.add_safe_globals([Dictionary])
     
     mdl,cfg,task = load_model_and_update(args.ft_model)
     dargs = OmegaConf.create({'nbest':args.nbest, \
