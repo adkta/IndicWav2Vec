@@ -14,7 +14,11 @@ if not os.path.exists(manifest):
     os.makedirs(manifest)
 
 charset = set()
-for folder in tqdm.tqdm(os.listdir(p2root)):
+for folder_path in tqdm.tqdm(Path(p2root).iterdir()):
+    if folder_path.is_file():
+        continue
+
+    folder = folder_path.name
     if 'manifest' == folder:
         continue
     data_fol = Path(f"{p2root}/{folder}")
