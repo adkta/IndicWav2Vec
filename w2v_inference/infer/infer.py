@@ -156,8 +156,7 @@ def process_predictions(
                 file=res_files["hypo.words"],
             )
 
-        # tgt_pieces = tgt_dict.string(target_tokens)
-        tgt_pieces = target_tokens
+        tgt_pieces = tgt_dict.string(target_tokens)
         tgt_words = post_process(tgt_pieces, args.post_process)
 
         if res_files is not None:
@@ -418,8 +417,8 @@ def main(args, task=None, model_state=None):
                     else sample["target_label"][i, :]
                 )
 
-                # target_tokens = utils.strip_pad(toks, tgt_dict.pad()).int().cpu()
-                target_tokens = task.dataset(args.gen_subset).labels[int(sample_id)]                # Process top predictions
+                target_tokens = utils.strip_pad(toks, tgt_dict.pad()).int().cpu()
+                # target_tokens = task.dataset(args.gen_subset).labels[int(sample_id)]                # Process top predictions
                 errs, length = process_predictions(
                     args,
                     hypos[i],
