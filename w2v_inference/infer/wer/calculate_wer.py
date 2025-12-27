@@ -179,9 +179,22 @@ def run_pipeline(ground_truth, predicted, args_local=None):
 
     print(len(original_csv)," ", len(predicted_csv))
 
-    data = list(zip(original_csv, predicted_csv))
-    df_merged = pd.DataFrame(data, columns = ['original', 'predicted'])
-    
+    original_csv = pd.DataFrame(original_csv, columns=['text'])
+    predicted_csv = pd.DataFrame(predicted_csv, columns=['text'])
+
+    original_csv['ix'] = original_csv['text'].str.split('\(None-').str[-1].str[0:-1].astype('int')
+    predicted_csv['ix'] = predicted_csv['text'].str.split('\(None-').str[-1].str[1:-2].astype('int')
+    original_csv = preprocess(original_csv)
+    predicted_csv = preprocess(predicted_csv)
+
+
+    #df_merged = pd.DataFrame(data = [original_csv.cleaned_text.values, predicted_csv.cleaned_text.values],index=None)
+    #df_merged = df_merged.transpose()
+
+    df_merged = pd.merge(original_csv,predicted_csv, on='ix')
+    df_merged = df_merged[['cleaned_text_x', 'cleaned_text_y', 'ix']]
+    df_merged.columns = ['original', 'predicted','ix']
+       
     df_merged['wer'] = df_merged.apply(calculate_wer, axis = 1)
     df_merged['cer'] = df_merged.swifter.apply(calculate_cer, axis = 1)
     df_merged['num_tokens'] = df_merged['original'].str.split().str.len()
