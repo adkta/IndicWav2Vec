@@ -123,24 +123,24 @@ def preprocess_line(line, normalizer, src, tgt):
         )
 
 
-def preprocess(infname, outfname, src, tgt):
-    """
-    Normalize the data, tokenize the data and convert to devanagari
-    """
-    num_lines = sum(1 for _ in open(infname, "r"))
-    normfactory = indic_normalize.IndicNormalizerFactory()
-    normalizer = normfactory.get_normalizer(src)
+# def preprocess(infname, outfname, src, tgt):
+#     """
+#     Normalize the data, tokenize the data and convert to devanagari
+#     """
+#     num_lines = sum(1 for _ in open(infname, "r"))
+#     normfactory = indic_normalize.IndicNormalizerFactory()
+#     normalizer = normfactory.get_normalizer(src)
 
-    with open(infname, "r", encoding="utf-8") as infile, open(
-        outfname, "w", encoding="utf-8"
-    ) as outfile:
-        outlines = Parallel(n_jobs=-1, backend="multiprocessing")(
-            delayed(preprocess_line)(line, normalizer, src, tgt)
-            for line in tqdm(infile, total=num_lines)
-        )
-        for line in outlines:
-            outfile.write(line + "\n")
-    return True
+#     with open(infname, "r", encoding="utf-8") as infile, open(
+#         outfname, "w", encoding="utf-8"
+#     ) as outfile:
+#         outlines = Parallel(n_jobs=-1, backend="multiprocessing")(
+#             delayed(preprocess_line)(line, normalizer, src, tgt)
+#             for line in tqdm(infile, total=num_lines)
+#         )
+#         for line in outlines:
+#             outfile.write(line + "\n")
+#     return True
 
 def run_pipeline(ground_truth, predicted, args_local=None):
     print(ground_truth,predicted)
@@ -148,42 +148,15 @@ def run_pipeline(ground_truth, predicted, args_local=None):
         original_csv = file.readlines()
     original_csv = [line.strip() for line in original_csv]
 
-    with open(predicted, encoding='utf-8') as file:
-        raw_lines = file.read().strip().split("\n")
-    line2sen = {}
-    for line in raw_lines:
-        sen, lno  = line.split("(None-")
-        lno = lno.split(')')[0]
-        line2sen[int(lno)] = sen.strip()
-    fol_name=(args_local.name).replace("/sentence_wise_wer.csv","")
-    # print(fol_name)
-    # fol_name="/".join((args_local.name).split('/')[:-1])
-    with open(fol_name+"/temp.wrd",'w') as f:
-        for n in range(len(line2sen)):
-            print(line2sen[n],file=f)
-
-    if args_local.transl:
-        lang_map = {'hindi': 'hi', "gujarati":'gu', 'odia':'or', 'marathi':'hi',
-                    'tamil':'ta', 'telugu':'te'}
-        target = lang_map[args_local.lang]
-        preprocess(fol_name+"/temp.wrd", fol_name+"/tr_temp.wrd", 'hi', target)
-    
-        with open(fol_name+"/tr_temp.wrd", encoding='utf-8') as file:
-            predicted_csv = file.readlines()
-        predicted_csv = [line.strip() for line in predicted_csv]
-
-    else:
-        with open(fol_name+"/temp.wrd", encoding='utf-8') as file:
-            predicted_csv = file.readlines()
-        predicted_csv = [line.strip() for line in predicted_csv]
-
+    with open(predicted) as file:
+        predicted_csv = file.readlines()
     print(len(original_csv)," ", len(predicted_csv))
 
     original_csv = pd.DataFrame(original_csv, columns=['text'])
     predicted_csv = pd.DataFrame(predicted_csv, columns=['text'])
 
     original_csv['ix'] = original_csv['text'].str.split('\(None-').str[-1].str[0:-1].astype('int')
-    predicted_csv['ix'] = predicted_csv['text'].str.split('\(None-').str[-1].str[1:-2].astype('int')
+    predicted_csv['ix'] = predicted_csv['text'].str.split('\(None-').str[-1].str[0:-2].astype('int')
     original_csv = preprocess(original_csv)
     predicted_csv = preprocess(predicted_csv)
 
@@ -238,7 +211,7 @@ if __name__ == "__main__":
 
     if args_local.save_output:
         df.to_csv(args_local.name, index=False)
-        with open('~/WER_valid.csv', 'a+') as f:
+        with open('/content/WER_valid.csv', 'a+') as f:
             name=args_local.name.split('/')[-2]
             f.write(f'{name},{wer},{cer}\n')
 
